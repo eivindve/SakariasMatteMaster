@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brøk-Laben – Forstå brøkregning med kaker!</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono for matteuttrykk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        },
+                        cake1: {
+                            light: '#ffedd5',
+                            main: '#f97316', // Oransje
+                            dark: '#c2410c',
+                        },
+                        cake2: {
+                            light: '#cffafe',
+                            main: '#06b6d4', // Cyan/Turkis
+                            dark: '#0e7490',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Egendefinerte stiler for brøkstreker og jevne animasjoner */
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            vertical-align: middle;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            line-height: 1.1;
+            margin: 0 0.25rem;
+        }
+        .fraction-top {
+            border-bottom: 2.5px solid currentColor;
+            padding: 0 0.35rem 0.15rem 0.35rem;
+            text-align: center;
+        }
+        .fraction-bottom {
+            padding: 0.15rem 0.35rem 0 0.35rem;
+            text-align: center;
+        }
+
+        /* Kakebit hover-effekt */
+        .cake-slice {
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+            transform-origin: center;
+            cursor: pointer;
+        }
+        .cake-slice:hover {
+            filter: brightness(1.08);
+        }
+
+        /* Stiplet linje animasjon når vi deler opp kakene */
+        @keyframes dashDraw {
+            from {
+                stroke-dashoffset: 200;
+                opacity: 0;
+            }
+            to {
+                stroke-dashoffset: 0;
+                opacity: 1;
+            }
+        }
+        .sub-divider-line {
+            stroke-dasharray: 4, 3;
+            animation: dashDraw 0.6s ease-out forwards;
+        }
+
+        /* Pulserende ring rundt fellesnevner i gangetabellen */
+        @keyframes popIn {
+            0% { transform: scale(0.7); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .match-badge {
+            animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+    <!-- Toppbar / Header -->
+    <header class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <!-- Kake-ikon SVG -->
+                    <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white">Brøk-Laben</h1>
+                    <p class="text-xs text-slate-400">Se hva som egentlig skjer når vi regner med brøk</p>
+                </div>
+            </div>
+
+            <!-- Hurtigvalg av oppgaver fra arket + Egendefinert -->
+            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2" id="preset-buttons">
+                <!-- Genereres med JS -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Hovedinnhold -->
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 py-6 flex flex-col gap-6">
+
+        <!-- Egendefinert brøk-panel (skjult med mindre "Lag egen" er valgt) -->
+        <section id="custom-panel" class="hidden bg-slate-800 border border-indigo-500/40 rounded-2xl p-4 sm:p-5 shadow-xl transition-all">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-base font-bold text-indigo-300 flex items-center gap-2">
+                        <span>🛠️</span> Lag ditt eget regnestykke
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Velg tallene selv og se hvordan kakene deles opp!</p>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 bg-slate-900/70 p-3 rounded-xl border border-slate-700">
+                    <!-- Brøk 1 input -->
+                    <div class="flex flex-col items-center gap-1">
+                        <label class="text-[10px] uppercase tracking-wider text-orange-400 font-bold">Kake 1</label>
+                        <input type="number" id="in-n1" min="1" max="11" value="1" class="w-14 text-center bg-slate-800 border border-slate-600 rounded-lg py-1 font-mono font-bold text-orange-400 focus:outline-none focus:border-orange-500">
+                        <div class="w-12 h-0.5 bg-slate-500"></div>
+                        <input type="number" id="in-d1" min="2" max="12" value="3" class="w-14 text-center bg-slate-800 border border-slate-600 rounded-lg py-1 font-mono font-bold text-slate-200 focus:outline-none focus:border-orange-500">
+                    </div>
+
+                    <!-- Operator (+ eller -) -->
+                    <div class="flex flex-col items-center">
+                        <label class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Regneart</label>
+                        <select id="in-op" class="bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 font-mono text-xl font-bold text-indigo-400 focus:outline-none focus:border-indigo-500 cursor-pointer">
+                            <option value="+">+</option>
+                            <option value="-">−</option>
+                        </select>
+                    </div>
+
+                    <!-- Brøk 2 input -->
+                    <div class="flex flex-col items-center gap-1">
+                        <label class="text-[10px] uppercase tracking-wider text-cyan-400 font-bold">Kake 2</label>
+                        <input type="number" id="in-n2" min="1" max="11" value="2" class="w-14 text-center bg-slate-800 border border-slate-600 rounded-lg py-1 font-mono font-bold text-cyan-400 focus:outline-none focus:border-cyan-500">
+                        <div class="w-12 h-0.5 bg-slate-500"></div>
+                        <input type="number" id="in-d2" min="2" max="12" value="4" class="w-14 text-center bg-slate-800 border border-slate-600 rounded-lg py-1 font-mono font-bold text-slate-200 focus:outline-none focus:border-cyan-500">
+                    </div>
+
+                    <button id="btn-apply-custom" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition cursor-pointer">
+                        Bruk tallene
+                    </button>
+                </div>
+            </div>
+            <!-- Feilmelding / info-boks (erstatter alert) -->
+            <div id="custom-feedback" class="hidden mt-3 text-xs font-medium text-amber-300 bg-amber-950/60 border border-amber-500/40 rounded-lg px-3 py-2"></div>
+        </section>
+
+        <!-- Steg-indikator (Progress bar) -->
+        <div class="grid grid-cols-4 gap-2 sm:gap-3" id="step-indicators">
+            <button data-step="1" class="step-tab text-left p-2.5 sm:p-3 rounded-xl border transition cursor-pointer">
+                <div class="text-[11px] font-bold uppercase tracking-wider opacity-75">Steg 1</div>
+                <div class="text-xs sm:text-sm font-bold truncate">Se på bitene</div>
+            </button>
+            <button data-step="2" class="step-tab text-left p-2.5 sm:p-3 rounded-xl border transition cursor-pointer">
+                <div class="text-[11px] font-bold uppercase tracking-wider opacity-75">Steg 2</div>
+                <div class="text-xs sm:text-sm font-bold truncate">Fellesnevner</div>
+            </button>
+            <button data-step="3" class="step-tab text-left p-2.5 sm:p-3 rounded-xl border transition cursor-pointer">
+                <div class="text-[11px] font-bold uppercase tracking-wider opacity-75">Steg 3</div>
+                <div class="text-xs sm:text-sm font-bold truncate">Del opp likt</div>
+            </button>
+            <button data-step="4" class="step-tab text-left p-2.5 sm:p-3 rounded-xl border transition cursor-pointer">
+                <div class="text-[11px] font-bold uppercase tracking-wider opacity-75">Steg 4</div>
+                <div class="text-xs sm:text-sm font-bold truncate">Regn ut svaret!</div>
+            </button>
+        </div>
+
+        <!-- Hovedkort for visuell fremstilling -->
+        <div class="bg-slate-800/90 border border-slate-700 rounded-3xl p-4 sm:p-7 shadow-2xl flex flex-col gap-6">
+            
+            <!-- Forklaringsboks for gjeldende steg -->
+            <div class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="space-y-1.5 max-w-2xl">
+                    <div class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" id="step-badge">
+                        Steg 1 av 4
+                    </div>
+                    <h2 class="text-lg sm:text-xl font-extrabold text-white" id="step-title">
+                        Hvorfor kan vi ikke bare legge sammen tallene?
+                    </h2>
+                    <p class="text-sm sm:text-base text-slate-300 leading-relaxed" id="step-description">
+                        Se på kakene under. Kakestykkene har forskjellig størrelse! Å legge sammen én stor bit og én mindre bit blir som å telle epler og pærer sammen.
+                    </p>
+                </div>
+
+                <!-- Interaktiv tooltip/info når man peker på en kakebit -->
+                <div id="slice-inspector" class="w-full md:w-64 shrink-0 bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Kake-inspektør</div>
+                    <div id="inspector-text" class="text-sm font-bold text-indigo-300 mt-1">
+                        Hold pekeren over (eller trykk på) en kakebit!
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEG 2 SPESIALVISNING: Gangetabellene (akkurat som på oppgavearket!) -->
+            <div id="multiplication-panel" class="hidden bg-slate-900/90 border-2 border-indigo-500/40 rounded-2xl p-4 sm:p-5 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm sm:text-base font-bold text-indigo-300 flex items-center gap-2">
+                        <span>✖️</span> Gangetabellene til nevnerne (slik som på arket ditt):
+                    </h3>
+                    <span class="text-xs text-slate-400 hidden sm:inline">Vi leter etter det første tallet som finnes i begge!</span>
+                </div>
+                <div class="space-y-3 font-mono" id="tables-container">
+                    <!-- Fylles ut av JS -->
+                </div>
+            </div>
+
+            <!-- KAKE-SCENEN (Visualisering av kake 1, operator, kake 2, og evt. resultatkake) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 items-center justify-items-center gap-4 py-2" id="cakes-stage">
+                
+                <!-- KAKE 1 -->
+                <div class="lg:col-span-4 flex flex-col items-center bg-slate-900/50 border border-slate-700/60 rounded-2xl p-4 w-full max-w-xs">
+                    <div class="text-xs font-bold uppercase tracking-wider text-orange-400 mb-2" id="cake1-label">Kake 1</div>
+                    <div class="w-48 h-48 sm:w-52 sm:h-52 relative flex items-center justify-center" id="cake1-svg-container">
+                        <!-- SVG Kake 1 -->
+                    </div>
+                    <div class="mt-3 text-center" id="cake1-caption">
+                        <!-- Brøkuttrykk under kake 1 -->
+                    </div>
+                </div>
+
+                <!-- OPERATOR (+ eller -) -->
+                <div class="lg:col-span-1 flex items-center justify-center">
+                    <div id="stage-operator" class="w-12 h-12 rounded-2xl bg-slate-700/80 border border-slate-600 flex items-center justify-center font-mono text-2xl font-extrabold text-white shadow-inner">
+                        +
+                    </div>
+                </div>
+
+                <!-- KAKE 2 -->
+                <div class="lg:col-span-4 flex flex-col items-center bg-slate-900/50 border border-slate-700/60 rounded-2xl p-4 w-full max-w-xs">
+                    <div class="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2" id="cake2-label">Kake 2</div>
+                    <div class="w-48 h-48 sm:w-52 sm:h-52 relative flex items-center justify-center" id="cake2-svg-container">
+                        <!-- SVG Kake 2 -->
+                    </div>
+                    <div class="mt-3 text-center" id="cake2-caption">
+                        <!-- Brøkuttrykk under kake 2 -->
+                    </div>
+                </div>
+
+                <!-- ERLIKHETSTEGN + RESULTATKAKE (Viser seg tydelig i Steg 4, eller som skygge i Steg 1-3) -->
+                <div id="result-wrapper" class="lg:col-span-3 flex flex-col lg:flex-row items-center gap-4 w-full justify-center">
+                    <div class="w-10 h-10 rounded-xl bg-slate-700/50 flex items-center justify-center font-mono text-2xl font-extrabold text-slate-300">
+                        =
+                    </div>
+                    <div id="result-card" class="flex flex-col items-center bg-slate-900/50 border border-slate-700/60 rounded-2xl p-4 w-full max-w-xs transition-all duration-300">
+                        <div class="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-2" id="cake3-label">Svaret</div>
+                        <div class="w-48 h-48 sm:w-52 sm:h-52 relative flex items-center justify-center" id="cake3-svg-container">
+                            <!-- SVG Resultatkake -->
+                        </div>
+                        <div class="mt-3 text-center" id="cake3-caption">
+                            <!-- Resultatbrøk -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- MATHEMATISK UTREGNINGSLINJE (Slik det skrives i kladdeboka!) -->
+            <div class="bg-slate-950/70 border border-slate-700 rounded-2xl p-4 sm:p-5">
+                <div class="text-xs uppercase tracking-wider text-slate-400 font-bold mb-2 flex items-center gap-2">
+                    <span>📝</span> Slik skriver du det i matteboka di:
+                </div>
+                <div id="notebook-equation" class="flex flex-wrap items-center gap-2 sm:gap-3 text-lg sm:text-2xl font-mono text-white py-1 overflow-x-auto">
+                    <!-- Dynamisk matteuttrykk som bygger seg opp steg for steg -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Navigasjonsknapper nederst -->
+        <div class="flex items-center justify-between gap-4 pt-1 pb-6">
+            <button id="btn-prev" class="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none border border-slate-600 font-bold text-sm sm:text-base transition cursor-pointer">
+                <span>←</span> Forrige steg
+            </button>
+
+            <div class="hidden sm:flex items-center gap-1.5" id="dots-indicator">
+                <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
+            </div>
+
+            <button id="btn-next" class="flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 active:scale-95 text-white font-bold text-sm sm:text-base shadow-lg shadow-indigo-600/30 transition cursor-pointer">
+                <span id="btn-next-text">Neste steg</span> <span>→</span>
+            </button>
+        </div>
+
+    </main>
+
+    <script>
+        /**
+         * BRØK-LABEN - Interaktiv pedagogisk brøkvisualisering
+         * Tilpasset 7. trinn (12 år) basert på oppgaveark med fellesnevner og utviding av brøk.
+         */
+
+        // --- 1. FORHÅNDSDEFINERTE OPPGAVER FRA ARKET ---
+        const PRESETS = [
+            { id: 'ex', label: '1/3 + 2/4 (Eksempelet)', n1: 1, d1: 3, op: '+', n2: 2, d2: 4 },
+            { id: '2a', label: '1/3 − 1/5 (Oppg. 2a)', n1: 1, d1: 3, op: '-', n2: 1, d2: 5 },
+            { id: '2b', label: '2/4 + 4/6 (Oppg. 2b)', n1: 2, d1: 4, op: '+', n2: 4, d2: 6 },
+            { id: '2c', label: '2/5 + 1/4 (Oppg. 2c)', n1: 2, d1: 5, op: '+', n2: 1, d2: 4 },
+            { id: '2d', label: '4/5 − 1/6 (Oppg. 2d)', n1: 4, d1: 5, op: '-', n2: 1, d2: 6 },
+            { id: '2e', label: '1/2 + 1/5 (Oppg. 2e)', n1: 1, d1: 2, op: '+', n2: 1, d2: 5 },
+            { id: 'custom', label: '✨ Lag egen', isCustom: true }
+        ];
+
+        // --- 2. APPLIKASJONSTILSTAND (STATE) ---
+        let state = {
+            activePresetId: 'ex',
+            n1: 1,
+            d1: 3,
+            op: '+',
+            n2: 2,
+            d2: 4,
+            step: 1 // 1 til 4
+        };
+
+        // --- 3. HJELPEFUNKSJONER FOR MATEMATIKK ---
+        function gcd(a, b) {
+            return b === 0 ? a : gcd(b, a % b);
+        }
+
+        function lcm(a, b) {
+            return (a * b) / gcd(a, b);
+        }
+
+        // Lager fin HTML for en brøk
+        function fracHTML(top, bottom, colorClass = 'text-white', extraSub = '') {
+            return `
+                <span class="fraction ${colorClass}">
+                    <span class="fraction-top">${top}</span>
+                    <span class="fraction-bottom">${bottom}</span>
+                </span>
+            `;
+        }
+
+        // --- 4. SVG KAKEDIAGRAM-GENERATOR ---
+        /**
+         * Tegner en SVG-kake med nøyaktige vinkler, farger og valgfrie stiplede delelinjer.
+         * @param {Object} opts - Konfigurasjon for kaken
+         */
+        function createCakeSVG({
+            totalSlices,       // Antall hovedstykker (nevner)
+            filledSlices,      // Hvor mange som er fargelagt (teller)
+            fillColor,         // Hovedfarge på bitene
+            subDivisions = 1,  // Hvor mange småbiter hvert hovedstykke deles i (utvidingsfaktor)
+            secondColor = null,// Brukes på resultatkaken for å vise bitene fra kake 2!
+            secondCount = 0,   // Antall biter fra kake 2 (ved addisjon)
+            removedCount = 0,  // Antall biter som trekkes fra (ved subtraksjon)
+            cakeName = 'Kake'
+        }) {
+            const size = 220;
+            const cx = size / 2;
+            const cy = size / 2;
+            const r = 92;
+
+            // Hvis antall biter overstiger 1 hel kake (u ekte brøk, f.eks. 14/12), viser vi opptil 2 kaker side om side!
+            const totalUnitsNeeded = Math.max(1, Math.ceil((filledSlices + secondCount) / totalSlices));
+            
+            if (totalUnitsNeeded > 1) {
+                // Tegn to mindre kaker ved siden av hverandre for uekte brøk
+                return createDoubleCakeSVG({
+                    totalSlices, filledSlices, fillColor, secondColor, secondCount, cakeName
+                });
+            }
+
+            let paths = '';
+            let mainLines = '';
+            let subLines = '';
+
+            // Tegn bakgrunnssirkel (tallerken/kakebunn)
+            paths += `<circle cx="${cx}" cy="${cy}" r="${r + 4}" fill="#1e293b" stroke="#334155" stroke-width="2" />`;
+
+            // 1. Tegn hvert hovedstykke (eller finstykket hvis subDivisions === 1 og vi er i steg 4)
+            const effectiveTotal = totalSlices * subDivisions;
+            const angleStep = (2 * Math.PI) / effectiveTotal;
+
+            for (let i = 0; i < effectiveTotal; i++) {
+                // Start rett opp (-PI / 2)
+                const startAngle = i * angleStep - Math.PI / 2;
+                const endAngle = (i + 1) * angleStep - Math.PI / 2;
+
+                const x1 = cx + r * Math.cos(startAngle);
+                const y1 = cy + r * Math.sin(startAngle);
+                const x2 = cx + r * Math.cos(endAngle);
+                const y2 = cy + r * Math.sin(endAngle);
+
+                const largeArcFlag = angleStep > Math.PI ? 1 : 0;
+
+                // Bestem farge og status for denne lille biten
+                let sliceFill = '#0f172a'; // Tom bit (mørk skifer)
+                let sliceStatus = 'Tom bit';
+                let opacity = '1';
+
+                const filledSubCount = filledSlices * subDivisions;
+
+                if (secondColor && secondCount > 0) {
+                    // Resultatkake ved ADDISJON
+                    if (i < filledSubCount) {
+                        sliceFill = fillColor;
+                        sliceStatus = `Fra Kake 1 (1/${effectiveTotal} av kaken)`;
+                    } else if (i < filledSubCount + secondCount) {
+                        sliceFill = secondColor;
+                        sliceStatus = `Fra Kake 2 (1/${effectiveTotal} av kaken)`;
+                    } else {
+                        sliceStatus = `Ledig plass (1/${effectiveTotal} av kaken)`;
+                    }
+                } else if (removedCount > 0) {
+                    // Resultatkake ved SUBTRAKSJON
+                    const remaining = filledSubCount - removedCount;
+                    if (i < remaining) {
+                        sliceFill = fillColor;
+                        sliceStatus = `Igjen etter at vi trakk fra (1/${effectiveTotal})`;
+                    } else if (i < filledSubCount) {
+                        sliceFill = '#ef4444'; // Rød markering for bitene som spises/trekkes fra
+                        opacity = '0.28';
+                        sliceStatus = `Trukket fra! (−1/${effectiveTotal})`;
+                    } else {
+                        sliceStatus = `Tom bit (1/${effectiveTotal})`;
+                    }
+                } else {
+                    // Vanlig kake 1 eller kake 2
+                    if (i < filledSubCount) {
+                        sliceFill = fillColor;
+                        sliceStatus = `${cakeName}: Valgt bit (1/${effectiveTotal} av hele kaken)`;
+                    } else {
+                        sliceStatus = `${cakeName}: Tom bit (1/${effectiveTotal} av hele kaken)`;
+                    }
+                }
+
+                const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+                
+                paths += `
+                    <path d="${d}" 
+                          fill="${sliceFill}" 
+                          fill-opacity="${opacity}"
+                          class="cake-slice"
+                          onmouseenter="updateInspector('${sliceStatus}')"
+                          onclick="updateInspector('${sliceStatus}')"
+                    />
+                `;
+
+                // Skillelinjer: Er dette en hovedlinje eller en ny oppdelingslinje?
+                const isMainBoundary = (i % subDivisions === 0);
+                if (isMainBoundary) {
+                    mainLines += `<line x1="${cx}" y1="${cy}" x2="${x1}" y2="${y1}" stroke="#0f172a" stroke-width="2.5" pointer-events="none" />`;
+                } else {
+                    // Stiplet linje som viser den nye oppdelingen i Steg 3!
+                    subLines += `<line x1="${cx}" y1="${cy}" x2="${x1}" y2="${y1}" stroke="#ffffff" stroke-width="1.8" class="sub-divider-line" pointer-events="none" />`;
+                }
+            }
+
+            // Ytterkant rundt hele kaken
+            const outerRing = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#475569" stroke-width="2.5" pointer-events="none" />`;
+
+            return `
+                <svg viewBox="0 0 ${size} ${size}" class="w-full h-full drop-shadow-xl overflow-visible">
+                    ${paths}
+                    ${subLines}
+                    ${mainLines}
+                    ${outerRing}
+                </svg>
+            `;
+        }
+
+        // Hjelpefunksjon når svaret blir større enn 1 hel kake (f.eks. 2/4 + 4/6 = 14/12 = 1 hel og 2/12)
+        function createDoubleCakeSVG({ totalSlices, filledSlices, fillColor, secondColor, secondCount, cakeName }) {
+            const w = 260;
+            const h = 140;
+            const r = 54;
+            const centers = [{ cx: 68, cy: 70 }, { cx: 192, cy: 70 }];
+            let svgContent = '';
+
+            const angleStep = (2 * Math.PI) / totalSlices;
+
+            centers.forEach((center, cakeIdx) => {
+                svgContent += `<circle cx="${center.cx}" cy="${center.cy}" r="${r + 3}" fill="#1e293b" stroke="#334155" stroke-width="1.5" />`;
+                
+                for (let i = 0; i < totalSlices; i++) {
+                    const globalIdx = cakeIdx * totalSlices + i;
+                    const startAngle = i * angleStep - Math.PI / 2;
+                    const endAngle = (i + 1) * angleStep - Math.PI / 2;
+
+                    const x1 = center.cx + r * Math.cos(startAngle);
+                    const y1 = center.cy + r * Math.sin(startAngle);
+                    const x2 = center.cx + r * Math.cos(endAngle);
+                    const y2 = center.cy + r * Math.sin(endAngle);
+                    const largeArc = angleStep > Math.PI ? 1 : 0;
+
+                    let sliceFill = '#0f172a';
+                    let status = `Ledig bit (1/${totalSlices})`;
+
+                    if (globalIdx < filledSlices) {
+                        sliceFill = fillColor;
+                        status = `Fra Kake 1 (1/${totalSlices})`;
+                    } else if (globalIdx < filledSlices + secondCount) {
+                        sliceFill = secondColor;
+                        status = `Fra Kake 2 (1/${totalSlices})`;
+                    }
+
+                    const d = `M ${center.cx} ${center.cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                    svgContent += `
+                        <path d="${d}" fill="${sliceFill}" class="cake-slice"
+                              onmouseenter="updateInspector('${status}')"
+                              onclick="updateInspector('${status}')" />
+                        <line x1="${center.cx}" y1="${center.cy}" x2="${x1}" y2="${y1}" stroke="#0f172a" stroke-width="2" pointer-events="none" />
+                    `;
+                }
+                svgContent += `<circle cx="${center.cx}" cy="${center.cy}" r="${r}" fill="none" stroke="#475569" stroke-width="2" pointer-events="none" />`;
+            });
+
+            return `<svg viewBox="0 0 ${w} ${h}" class="w-full h-full drop-shadow-xl">${svgContent}</svg>`;
+        }
+
+        // --- 5. OPPDATER INSPEKTØR-BOKSEN ---
+        window.updateInspector = function(text) {
+            const el = document.getElementById('inspector-text');
+            if (el) {
+                el.textContent = text;
+            }
+        };
+
+        // --- 6. BYGG GANGETABELLENE FOR STEG 2 ---
+        function renderMultiplicationTables(d1, d2, commonDenom) {
+            const container = document.getElementById('tables-container');
+            
+            // Lag rekker opptil minst commonDenom + 2 steg
+            const count1 = Math.max(5, Math.ceil(commonDenom / d1) + 1);
+            const count2 = Math.max(5, Math.ceil(commonDenom / d2) + 1);
+
+            const makeRow = (base, count, colorClass, ringColor) => {
+                let items = [];
+                for (let i = 1; i <= count; i++) {
+                    const val = base * i;
+                    const isMatch = (val === commonDenom);
+                    if (isMatch) {
+                        items.push(`
+                            <span class="match-badge inline-flex items-center justify-center w-9 h-9 rounded-full border-2 ${ringColor} bg-indigo-500/20 text-white font-extrabold shadow-md">
+                                ${val}
+                            </span>
+                        `);
+                    } else {
+                        items.push(`<span class="inline-flex items-center justify-center w-8 h-8 text-slate-300">${val}</span>`);
+                    }
+                }
+                return `
+                    <div class="flex flex-wrap items-center gap-2 bg-slate-800/70 px-3 py-2 rounded-xl border border-slate-700/70">
+                        <span class="font-sans font-bold text-sm ${colorClass} w-24 shrink-0">${base}-gangen:</span>
+                        <div class="flex flex-wrap items-center gap-1.5 text-base">
+                            ${items.join('<span class="text-slate-600">,</span>')}
+                        </div>
+                    </div>
+                `;
+            };
+
+            container.innerHTML = `
+                ${makeRow(d1, count1, 'text-orange-400', 'border-orange-400')}
+                ${makeRow(d2, count2, 'text-cyan-400', 'border-cyan-400')}
+                <div class="text-xs sm:text-sm font-sans text-indigo-200 pt-1">
+                    💡 Begge gangetabellene treffer <strong class="text-white underline decoration-indigo-400 decoration-2">${commonDenom}</strong>! Derfor blir <strong class="text-white">${commonDenom}</strong> fellesnevneren vår.
+                </div>
+            `;
+        }
+
+        // --- 7. HOVEDRENDER-FUNKSJON SOM OPPDATERER HELE UI ---
+        function render() {
+            const { n1, d1, op, n2, d2, step } = state;
+            const commonD = lcm(d1, d2);
+            const mult1 = commonD / d1; // Hva vi ganger brøk 1 med oppe og nede
+            const mult2 = commonD / d2; // Hva vi ganger brøk 2 med oppe og nede
+            const newN1 = n1 * mult1;
+            const newN2 = n2 * mult2;
+            const resN = op === '+' ? (newN1 + newN2) : (newN1 - newN2);
+            const opSymbol = op === '+' ? '+' : '−';
+
+            // 1. Oppdater steg-faner og prikker
+            document.querySelectorAll('.step-tab').forEach(btn => {
+                const s = parseInt(btn.dataset.step);
+                if (s === step) {
+                    btn.className = 'step-tab text-left p-2.5 sm:p-3 rounded-xl border border-indigo-400 bg-indigo-600/25 text-white shadow-lg shadow-indigo-500/10 transition cursor-pointer';
+                } else if (s < step) {
+                    btn.className = 'step-tab text-left p-2.5 sm:p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/30 text-emerald-200 transition cursor-pointer';
+                } else {
+                    btn.className = 'step-tab text-left p-2.5 sm:p-3 rounded-xl border border-slate-700 bg-slate-800/50 text-slate-400 hover:bg-slate-800 transition cursor-pointer';
+                }
+            });
+
+            const dots = document.getElementById('dots-indicator').children;
+            for (let i = 0; i < 4; i++) {
+                dots[i].className = `w-2.5 h-2.5 rounded-full transition-all ${i + 1 === step ? 'bg-indigo-400 scale-125' : (i + 1 < step ? 'bg-emerald-500' : 'bg-slate-700')}`;
+            }
+
+            // 2. Oppdater Forrige / Neste knapper
+            document.getElementById('btn-prev').disabled = (step === 1);
+            const nextBtnText = document.getElementById('btn-next-text');
+            if (step === 4) {
+                nextBtnText.textContent = 'Start på nytt';
+            } else {
+                nextBtnText.textContent = 'Neste steg';
+            }
+
+            // 3. Oppdater forklaringstekster for hvert steg
+            const badge = document.getElementById('step-badge');
+            const title = document.getElementById('step-title');
+            const desc = document.getElementById('step-description');
+            const multPanel = document.getElementById('multiplication-panel');
+
+            badge.textContent = `Steg ${step} av 4`;
+            document.getElementById('stage-operator').textContent = opSymbol;
+
+            if (step === 1) {
+                multPanel.classList.add('hidden');
+                title.textContent = '1. Se på kakestykkene – de er ikke like store!';
+                desc.innerHTML = `
+                    Den første kaken er delt i <strong class="text-orange-400">${d1}</strong> stykker (vi har ${n1}), mens den andre kaken er delt i <strong class="text-cyan-400">${d2}</strong> stykker (vi har ${n2}). 
+                    Fordi stykkene har <strong>forskjellig størrelse</strong>, kan vi ikke bare ${op === '+' ? 'legge sammen' : 'trekke fra'} tellerne direkte!
+                `;
+            } else if (step === 2) {
+                multPanel.classList.remove('hidden');
+                renderMultiplicationTables(d1, d2, commonD);
+                title.textContent = '2. Finn en felles størrelse på stykkene (fellesnevner)';
+                desc.innerHTML = `
+                    Vi bruker gangetabellen til nevnerne (<strong class="text-orange-400">${d1}</strong> og <strong class="text-cyan-400">${d2}</strong>) for å finne et tall begge går opp i. 
+                    Det første tallet som dukker opp i begge tabellene er <strong class="text-indigo-300">${commonD}</strong>. Det betyr at vi kan dele begge kakene i <strong>${commonD} like store biter</strong>!
+                `;
+            } else if (step === 3) {
+                multPanel.classList.add('hidden');
+                title.textContent = `3. Del opp kakene i ${commonD}-deler (utvid brøkene)`;
+                desc.innerHTML = `
+                    Se på de hvite stiplede linjene! Hvert stykke i Kake 1 deles i <strong class="text-orange-400">${mult1}</strong> mindre biter, og hvert stykke i Kake 2 deles i <strong class="text-cyan-400">${mult2}</strong> mindre biter. 
+                    Mengden kake er akkurat den samme, men nå har begge kakene <strong>nøyaktig like store biter</strong> (${commonD}-deler)!
+                `;
+            } else if (step === 4) {
+                multPanel.classList.add('hidden');
+                title.textContent = op === '+' ? '4. Slå sammen bitene i én kake!' : '4. Trekk fra bitene!';
+                if (op === '+') {
+                    desc.innerHTML = `
+                        Nå som alle bitene er ${commonD}-deler, er det superenkelt! Vi flytter de <strong class="text-orange-400">${newN1}</strong> oransje bitene og de <strong class="text-cyan-400">${newN2}</strong> turkise bitene over på samme fat. 
+                        Til sammen får vi <strong class="text-emerald-400">${resN}</strong> biter av størrelsen 1/${commonD}, altså <strong>${resN}/${commonD}</strong>!
+                    `;
+                } else {
+                    desc.innerHTML = `
+                        Nå som alle bitene er ${commonD}-deler, kan vi trekke fra! Vi starter med de <strong class="text-orange-400">${newN1}</strong> oransje bitene, og tar bort <strong class="text-cyan-400">${newN2}</strong> biter (de røde gjennomsiktige). 
+                        Da sitter vi igjen med <strong class="text-emerald-400">${resN}</strong> biter, altså <strong>${resN}/${commonD}</strong>!
+                    `;
+                }
+            }
+
+            // 4. Tegn Kake 1 og Kake 2
+            const showSubDivisions = (step >= 3);
+
+            document.getElementById('cake1-svg-container').innerHTML = createCakeSVG({
+                totalSlices: d1,
+                filledSlices: n1,
+                fillColor: '#f97316',
+                subDivisions: showSubDivisions ? mult1 : 1,
+                cakeName: 'Kake 1'
+            });
+
+            document.getElementById('cake2-svg-container').innerHTML = createCakeSVG({
+                totalSlices: d2,
+                filledSlices: n2,
+                fillColor: '#06b6d4',
+                subDivisions: showSubDivisions ? mult2 : 1,
+                cakeName: 'Kake 2'
+            });
+
+            // Oppdater teksten under Kake 1 og Kake 2
+            if (!showSubDivisions) {
+                document.getElementById('cake1-caption').innerHTML = `
+                    <div class="text-lg">${fracHTML(n1, d1, 'text-orange-400')}</div>
+                    <div class="text-xs text-slate-400 mt-1">${n1} av ${d1} store stykker</div>
+                `;
+                document.getElementById('cake2-caption').innerHTML = `
+                    <div class="text-lg">${fracHTML(n2, d2, 'text-cyan-400')}</div>
+                    <div class="text-xs text-slate-400 mt-1">${n2} av ${d2} store stykker</div>
+                `;
+            } else {
+                document.getElementById('cake1-caption').innerHTML = `
+                    <div class="text-base flex items-center justify-center gap-1">
+                        ${fracHTML(`${n1}·${mult1}`, `${d1}·${mult1}`, 'text-orange-300')}
+                        <span>=</span>
+                        ${fracHTML(newN1, commonD, 'text-orange-400')}
+                    </div>
+                    <div class="text-xs text-slate-400 mt-1">${newN1} små biter (${commonD}-deler)</div>
+                `;
+                document.getElementById('cake2-caption').innerHTML = `
+                    <div class="text-base flex items-center justify-center gap-1">
+                        ${fracHTML(`${n2}·${mult2}`, `${d2}·${mult2}`, 'text-cyan-300')}
+                        <span>=</span>
+                        ${fracHTML(newN2, commonD, 'text-cyan-400')}
+                    </div>
+                    <div class="text-xs text-slate-400 mt-1">${newN2} små biter (${commonD}-deler)</div>
+                `;
+            }
+
+            // 5. Tegn Resultatkake (Kake 3)
+            const resultCard = document.getElementById('result-card');
+            if (step < 4) {
+                resultCard.classList.add('opacity-45', 'scale-95');
+                document.getElementById('cake3-svg-container').innerHTML = `
+                    <div class="w-40 h-40 rounded-full border-2 border-dashed border-slate-600 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
+                        <span class="text-2xl mb-1">?</span>
+                        <span class="text-xs">Viser seg i Steg 4</span>
+                    </div>
+                `;
+                document.getElementById('cake3-caption').innerHTML = `<div class="text-sm text-slate-500 font-semibold">Venter på like biter...</div>`;
+            } else {
+                resultCard.classList.remove('opacity-45', 'scale-95');
+                resultCard.classList.add('border-emerald-500/50', 'bg-emerald-950/20');
+                
+                if (op === '+') {
+                    document.getElementById('cake3-svg-container').innerHTML = createCakeSVG({
+                        totalSlices: commonD,
+                        filledSlices: newN1,
+                        fillColor: '#f97316',
+                        subDivisions: 1,
+                        secondColor: '#06b6d4',
+                        secondCount: newN2,
+                        cakeName: 'Resultatkake'
+                    });
+                } else {
+                    document.getElementById('cake3-svg-container').innerHTML = createCakeSVG({
+                        totalSlices: commonD,
+                        filledSlices: newN1,
+                        fillColor: '#f97316',
+                        subDivisions: 1,
+                        removedCount: newN2,
+                        cakeName: 'Resultatkake'
+                    });
+                }
+
+                // Sjekk om svaret kan forkortes eller skrives som blandet tall for ekstra læring!
+                const commonDiv = gcd(Math.abs(resN), commonD);
+                let extraNote = '';
+                if (resN > commonD) {
+                    const whole = Math.floor(resN / commonD);
+                    const rem = resN % commonD;
+                    extraNote = rem === 0 ? `= ${whole} hel kake!` : `= ${whole} hel og ${rem}/${commonD}`;
+                } else if (commonDiv > 1 && resN > 0) {
+                    extraNote = `(Kan også forkortes til ${resN / commonDiv}/${commonD / commonDiv})`;
+                }
+
+                document.getElementById('cake3-caption').innerHTML = `
+                    <div class="text-xl">${fracHTML(resN, commonD, 'text-emerald-400')}</div>
+                    <div class="text-xs text-emerald-300/90 font-medium mt-1">${extraNote || `${resN} av ${commonD} like biter`}</div>
+                `;
+            }
+
+            // 6. Oppdater "Slik skriver du det i matteboka di"
+            const nb = document.getElementById('notebook-equation');
+            let eqHTML = `
+                <div class="flex items-center">
+                    ${fracHTML(n1, d1, 'text-orange-400')}
+                    <span class="mx-1.5 text-slate-400">${opSymbol}</span>
+                    ${fracHTML(n2, d2, 'text-cyan-400')}
+                </div>
+            `;
+
+            if (step >= 3) {
+                eqHTML += `
+                    <span class="text-slate-500">=</span>
+                    <div class="flex items-center bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800">
+                        ${fracHTML(`${n1}·${mult1}`, `${d1}·${mult1}`, 'text-orange-300')}
+                        <span class="mx-1.5 text-slate-400">${opSymbol}</span>
+                        ${fracHTML(`${n2}·${mult2}`, `${d2}·${mult2}`, 'text-cyan-300')}
+                    </div>
+                    <span class="text-slate-500">=</span>
+                    <div class="flex items-center">
+                        ${fracHTML(newN1, commonD, 'text-orange-400')}
+                        <span class="mx-1.5 text-slate-400">${opSymbol}</span>
+                        ${fracHTML(newN2, commonD, 'text-cyan-400')}
+                    </div>
+                `;
+            }
+
+            if (step === 4) {
+                eqHTML += `
+                    <span class="text-slate-500">=</span>
+                    <div class="flex items-center bg-emerald-950/60 border border-emerald-500/40 px-3 py-1 rounded-xl">
+                        ${fracHTML(resN, commonD, 'text-emerald-400')}
+                    </div>
+                `;
+            }
+
+            nb.innerHTML = eqHTML;
+        }
+
+        // --- 8. INITIALISER KNAPPER OG HENDELSER ---
+        function initPresetButtons() {
+            const container = document.getElementById('preset-buttons');
+            container.innerHTML = '';
+
+            PRESETS.forEach(preset => {
+                const btn = document.createElement('button');
+                const isActive = state.activePresetId === preset.id;
+                btn.textContent = preset.label;
+                btn.className = `px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    isActive
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-slate-700/70 text-slate-300 hover:bg-slate-700 hover:text-white'
+                }`;
+
+                btn.addEventListener('click', () => {
+                    state.activePresetId = preset.id;
+                    const customPanel = document.getElementById('custom-panel');
+
+                    if (preset.isCustom) {
+                        customPanel.classList.remove('hidden');
+                    } else {
+                        customPanel.classList.add('hidden');
+                        state.n1 = preset.n1;
+                        state.d1 = preset.d1;
+                        state.op = preset.op;
+                        state.n2 = preset.n2;
+                        state.d2 = preset.d2;
+                        state.step = 1;
+                    }
+                    initPresetButtons();
+                    render();
+                });
+
+                container.appendChild(btn);
+            });
+        }
+
+        // Håndter egendefinerte tall
+        document.getElementById('btn-apply-custom').addEventListener('click', () => {
+            const n1 = parseInt(document.getElementById('in-n1').value);
+            const d1 = parseInt(document.getElementById('in-d1').value);
+            const op = document.getElementById('in-op').value;
+            const n2 = parseInt(document.getElementById('in-n2').value);
+            const d2 = parseInt(document.getElementById('in-d2').value);
+            const feedback = document.getElementById('custom-feedback');
+
+            feedback.classList.add('hidden');
+
+            // Enkel validering slik at kakene blir fine og lette å se
+            if (isNaN(n1) || isNaN(d1) || isNaN(n2) || isNaN(d2) || d1 < 2 || d2 < 2 || n1 < 1 || n2 < 1) {
+                feedback.textContent = '⚠️ Velg positive tall (og nevner må være minst 2).';
+                feedback.classList.remove('hidden');
+                return;
+            }
+            if (n1 >= d1 || n2 >= d2) {
+                feedback.textContent = '⚠️ Hold telleren mindre enn nevneren (ekte brøk) så får hver brøk plass i én hel kake!';
+                feedback.classList.remove('hidden');
+                return;
+            }
+            if (lcm(d1, d2) > 36) {
+                feedback.textContent = '⚠️ Fellesnevneren blir veldig stor (' + lcm(d1, d2) + ' biter!), da blir kakestykkene mikroskopiske. Prøv litt mindre nevnere!';
+                feedback.classList.remove('hidden');
+                return;
+            }
+            if (op === '-' && (n1 / d1) < (n2 / d2)) {
+                feedback.textContent = '⚠️ Ved minus må den første brøken være større enn eller lik den andre, ellers blir det negativ kake!';
+                feedback.classList.remove('hidden');
+                return;
+            }
+
+            state.n1 = n1;
+            state.d1 = d1;
+            state.op = op;
+            state.n2 = n2;
+            state.d2 = d2;
+            state.step = 1;
+            render();
+        });
+
+        // Steg-navigasjon
+        document.getElementById('btn-prev').addEventListener('click', () => {
+            if (state.step > 1) {
+                state.step--;
+                render();
+            }
+        });
+
+        document.getElementById('btn-next').addEventListener('click', () => {
+            if (state.step < 4) {
+                state.step++;
+            } else {
+                state.step = 1;
+            }
+            render();
+        });
+
+        document.querySelectorAll('.step-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.step = parseInt(btn.dataset.step);
+                render();
+            });
+        });
+
+        // Start applikasjonen ved innlasting
+        window.addEventListener('DOMContentLoaded', () => {
+            initPresetButtons();
+            render();
+        });
+    </script>
+</body>
+</html>
